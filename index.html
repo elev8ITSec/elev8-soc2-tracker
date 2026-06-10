@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>elev8 · SOC 2 Compliance Tracker</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0f172a; }
+    select option { background: #1e293b; }
+    input { font-family: inherit; }
+    button { font-family: inherit; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const CHECKLIST_DATA = [
+      {
+        category: "Identity & Access Management",
+        tsc: "CC6.1",
+        items: [
+          { id: "iam-001", task: "SSO configured for 1Password", owner: "Leslie", hipaa: true, notes: "Completed — SSO live" },
+          { id: "iam-002", task: "SSO enforced for all critical SaaS tools (Google Workspace, GitHub, Slack, AWS Console)", owner: "IT", hipaa: true, notes: "" },
+          { id: "iam-003", task: "MFA enforced for all users on every SSO-connected app", owner: "IT", hipaa: true, notes: "" },
+          { id: "iam-004", task: "MFA enforced for AWS root account and all IAM users", owner: "IT", hipaa: true, notes: "" },
+          { id: "iam-005", task: "Privileged access policy documented (least privilege)", owner: "Leslie", hipaa: true, notes: "" },
+          { id: "iam-006", task: "AWS IAM roles reviewed — no wildcard policies in production", owner: "Eng", hipaa: false, notes: "" },
+          { id: "iam-007", task: "GitHub access governance documented (teams, branch protections, admin list)", owner: "Eng", hipaa: false, notes: "" },
+          { id: "iam-008", task: "Quarterly access review process defined and scheduled", owner: "Leslie", hipaa: true, notes: "" },
+          { id: "iam-009", task: "Offboarding checklist includes access revocation within 24h", owner: "HR", hipaa: true, notes: "" },
+          { id: "iam-010", task: "Shared/service accounts documented and ownership assigned", owner: "Eng", hipaa: false, notes: "" },
+        ],
+      },
+      {
+        category: "Endpoint & Device Management",
+        tsc: "CC6.8",
+        items: [
+          { id: "ep-001", task: "BYOD policy written and signed by all employees", owner: "Leslie", hipaa: true, notes: "" },
+          { id: "ep-002", task: "MDM solution deployed on all company-managed devices", owner: "IT", hipaa: true, notes: "" },
+          { id: "ep-003", task: "Disk encryption enforced on all devices with PHI access", owner: "IT", hipaa: true, notes: "" },
+          { id: "ep-004", task: "Endpoint AV/EDR solution deployed and monitored", owner: "IT", hipaa: false, notes: "" },
+          { id: "ep-005", task: "Screen lock policy enforced (≤15 min idle)", owner: "IT", hipaa: false, notes: "" },
+          { id: "ep-006", task: "Approved software list defined; unapproved installs restricted", owner: "IT", hipaa: false, notes: "" },
+        ],
+      },
+      {
+        category: "Data Classification & PHI Handling",
+        tsc: "CC9.2 / Privacy",
+        items: [
+          { id: "dc-001", task: "Data classification policy written (PHI, PII, Confidential, Public)", owner: "Leslie", hipaa: true, notes: "" },
+          { id: "dc-002", task: "PHI data flow diagram completed (all systems touching PHI mapped)", owner: "Leslie", hipaa: true, notes: "" },
+          { id: "dc-003", task: "Slack PHI policy defined (no PHI in Slack channels)", owner: "Leslie", hipaa: true, notes: "" },
+          { id: "dc-004", task: "Google Workspace DLP rules configured to flag PHI", owner: "IT", hipaa: true, notes: "" },
+          { id: "dc-005", task: "Data retention and destruction policy written", owner: "Leslie", hipaa: true, notes: "" },
+          { id: "dc-006", task: "Encryption at rest confirmed for all PHI data stores (RDS, S3)", owner: "Eng", hipaa: true, notes: "" },
+          { id: "dc-007", task: "Encryption in transit enforced (TLS 1.2+ everywhere)", owner: "Eng", hipaa: true, notes: "" },
+        ],
+      },
+      {
+        category: "AWS Infrastructure Controls",
+        tsc: "CC7.1 / CC7.2",
+        items: [
+          { id: "aws-001", task: "CloudTrail enabled in all regions with log integrity validation", owner: "Eng", hipaa: true, notes: "" },
+          { id: "aws-002", task: "GuardDuty enabled in all active AWS regions", owner: "Eng", hipaa: false, notes: "" },
+          { id: "aws-003", task: "Security Hub enabled with CIS AWS Foundations benchmark", owner: "Eng", hipaa: false, notes: "" },
+          { id: "aws-004", task: "AWS Config enabled with required rules (e.g. S3 public block, MFA on root)", owner: "Eng", hipaa: false, notes: "" },
+          { id: "aws-005", task: "S3 buckets with PHI: public access blocked, bucket policies reviewed", owner: "Eng", hipaa: true, notes: "" },
+          { id: "aws-006", task: "RDS encryption at rest enabled, automated backups on", owner: "Eng", hipaa: true, notes: "" },
+          { id: "aws-007", task: "KMS keys documented with rotation enabled", owner: "Eng", hipaa: true, notes: "" },
+          { id: "aws-008", task: "VPC security groups audited — no 0.0.0.0/0 inbound on sensitive ports", owner: "Eng", hipaa: false, notes: "" },
+          { id: "aws-009", task: "AWS Inspector running on EC2/Lambda for vulnerability scanning", owner: "Eng", hipaa: false, notes: "" },
+          { id: "aws-010", task: "Log retention policy set (CloudTrail ≥ 1 year)", owner: "Eng", hipaa: true, notes: "" },
+        ],
+      },
+      {
+        category: "Change Management & SDLC",
+        tsc: "CC8.1",
+        items: [
+          { id: "cm-001", task: "Change management policy documented", owner: "Leslie", hipaa: false, notes: "" },
+          { id: "cm-002", task: "GitHub branch protection rules enforced (require PR reviews on main)", owner: "Eng", hipaa: false, notes: "" },
+          { id: "cm-003", task: "CI/CD pipeline includes approval gates before production deploy", owner: "Eng", hipaa: false, notes: "" },
+          { id: "cm-004", task: "Automated security scanning in CI pipeline (SAST/dependency check)", owner: "Eng", hipaa: false, notes: "" },
+          { id: "cm-005", task: "Production deployments require documented approvals", owner: "Eng", hipaa: false, notes: "" },
+          { id: "cm-006", task: "Rollback procedure documented and tested", owner: "Eng", hipaa: false, notes: "" },
+        ],
+      },
+      {
+        category: "Vendor & BAA Management",
+        tsc: "CC9.2",
+        items: [
+          { id: "vn-001", task: "Vendor risk assessment policy written", owner: "Leslie", hipaa: true, notes: "" },
+          { id: "vn-002", task: "BAA executed with AWS", owner: "Leslie", hipaa: true, notes: "" },
+          { id: "vn-003", task: "BAA executed with Google Workspace", owner: "Leslie", hipaa: true, notes: "" },
+          { id: "vn-004", task: "BAA executed with Zoom", owner: "Leslie", hipaa: true, notes: "" },
+          { id: "vn-005", task: "All PHI-touching vendors identified and BAA status tracked", owner: "Leslie", hipaa: true, notes: "" },
+          { id: "vn-006", task: "Vendor security questionnaire process defined for new vendors", owner: "Leslie", hipaa: false, notes: "" },
+        ],
+      },
+      {
+        category: "Incident Response",
+        tsc: "CC7.3 / CC7.4",
+        items: [
+          { id: "ir-001", task: "Incident response policy and playbook documented", owner: "Leslie", hipaa: true, notes: "" },
+          { id: "ir-002", task: "Breach notification procedure documented (HIPAA 60-day rule)", owner: "Leslie", hipaa: true, notes: "" },
+          { id: "ir-003", task: "Security incident log/tracking system defined", owner: "Leslie", hipaa: false, notes: "" },
+          { id: "ir-004", task: "IR roles and contact escalation list defined", owner: "Leslie", hipaa: false, notes: "" },
+          { id: "ir-005", task: "Tabletop exercise scheduled (at least annually)", owner: "Leslie", hipaa: false, notes: "" },
+        ],
+      },
+      {
+        category: "Risk Management",
+        tsc: "CC9.1",
+        items: [
+          { id: "rm-001", task: "Risk assessment completed and risk register created", owner: "Leslie", hipaa: true, notes: "" },
+          { id: "rm-002", task: "Risk treatment decisions documented per risk", owner: "Leslie", hipaa: false, notes: "" },
+          { id: "rm-003", task: "Annual risk review process scheduled", owner: "Leslie", hipaa: false, notes: "" },
+          { id: "rm-004", task: "Business continuity / disaster recovery plan documented", owner: "Leslie", hipaa: true, notes: "" },
+        ],
+      },
+      {
+        category: "Policies & HR Controls",
+        tsc: "CC1 / CC2",
+        items: [
+          { id: "hr-001", task: "Acceptable Use Policy written and signed by all staff", owner: "HR", hipaa: true, notes: "" },
+          { id: "hr-002", task: "Information Security Policy published", owner: "Leslie", hipaa: false, notes: "" },
+          { id: "hr-003", task: "Employee background check process documented", owner: "HR", hipaa: true, notes: "" },
+          { id: "hr-004", task: "HIPAA + Security Awareness training completed by all staff (annually)", owner: "HR", hipaa: true, notes: "" },
+          { id: "hr-005", task: "NDA/confidentiality agreement signed by all employees and contractors", owner: "HR", hipaa: true, notes: "" },
+          { id: "hr-006", task: "Code of conduct policy written and distributed", owner: "HR", hipaa: false, notes: "" },
+        ],
+      },
+      {
+        category: "Monitoring & Logging",
+        tsc: "CC7.2",
+        items: [
+          { id: "ml-001", task: "Centralized log aggregation defined (CloudWatch / SIEM)", owner: "Eng", hipaa: false, notes: "" },
+          { id: "ml-002", task: "Alerting configured for unauthorized access attempts", owner: "Eng", hipaa: true, notes: "" },
+          { id: "ml-003", task: "Log access controls documented (who can view/delete logs)", owner: "Eng", hipaa: true, notes: "" },
+          { id: "ml-004", task: "Uptime/availability monitoring configured with alerting", owner: "Eng", hipaa: false, notes: "" },
+          { id: "ml-005", task: "Performance metrics baseline established", owner: "Eng", hipaa: false, notes: "" },
+        ],
+      },
+      {
+        category: "Audit Readiness",
+        tsc: "All",
+        items: [
+          { id: "ar-001", task: "Compliance automation platform selected (Vanta / Drata / Secureframe)", owner: "Leslie", hipaa: false, notes: "" },
+          { id: "ar-002", task: "Evidence collection guide created per TSC criterion", owner: "Leslie", hipaa: false, notes: "" },
+          { id: "ar-003", task: "Auditor shortlisted and SOC 2 Type I engagement scoped", owner: "Leslie", hipaa: false, notes: "" },
+          { id: "ar-004", task: "Type I assessment date confirmed with auditor", owner: "Leslie", hipaa: false, notes: "" },
+          { id: "ar-005", task: "Policy version control established (all policies dated and versioned)", owner: "Leslie", hipaa: false, notes: "" },
+        ],
+      },
+    ];
+
+    const STATUS_CONFIG = {
+      not_started: { label: "Not Started", color: "#64748b", bg: "#1e293b", dot: "#475569" },
+      in_progress:  { label: "In Progress", color: "#f59e0b", bg: "#2d1f02", dot: "#f59e0b" },
+      completed:    { label: "Completed",   color: "#22c55e", bg: "#052e16", dot: "#22c55e" },
+      blocked:      { label: "Blocked",     color: "#ef4444", bg: "#2d0404", dot: "#ef4444" },
+    };
+
+    const OWNERS = ["Leslie", "IT", "Eng", "HR", "Legal", "All"];
+
+    function StatusBadge({ status }) {
+      const cfg = STATUS_CONFIG[status];
+      return (
+        <span style={{
+          display: "inline-flex", alignItems: "center", gap: 5,
+          padding: "2px 8px", borderRadius: 4,
+          background: cfg.bg, color: cfg.color,
+          fontSize: 11, fontWeight: 600, letterSpacing: "0.04em",
+          border: `1px solid ${cfg.color}22`, whiteSpace: "nowrap",
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: cfg.dot, flexShrink: 0 }} />
+          {cfg.label}
+        </span>
+      );
+    }
+
+    function ProgressBar({ pct }) {
+      const color = pct === 100 ? "#22c55e" : pct > 60 ? "#f59e0b" : pct > 30 ? "#3b82f6" : "#475569";
+      return (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ flex: 1, height: 4, background: "#1e293b", borderRadius: 2, overflow: "hidden" }}>
+            <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 2, transition: "width 0.4s ease" }} />
+          </div>
+          <span style={{ fontSize: 11, color: "#94a3b8", minWidth: 30, textAlign: "right" }}>{pct}%</span>
+        </div>
+      );
+    }
+
+    function SOC2Tracker() {
+      const [statuses, setStatuses] = useState({});
+      const [notes, setNotes] = useState({});
+      const [filter, setFilter] = useState("all");
+      const [ownerFilter, setOwnerFilter] = useState("all");
+      const [hipaaOnly, setHipaaOnly] = useState(false);
+      const [expandedCats, setExpandedCats] = useState({});
+      const [editingNote, setEditingNote] = useState(null);
+      const [noteInput, setNoteInput] = useState("");
+      const [loading, setLoading] = useState(true);
+      const [saved, setSaved] = useState(false);
+      const [activeTab, setActiveTab] = useState("checklist");
+
+      useEffect(() => {
+        try {
+          const r = localStorage.getItem("soc2_statuses");
+          const n = localStorage.getItem("soc2_notes");
+          const e = localStorage.getItem("soc2_expanded");
+          setStatuses(r ? JSON.parse(r) : { "iam-001": "completed" });
+          setNotes(n ? JSON.parse(n) : { "iam-001": "Completed — SSO live" });
+          if (e) setExpandedCats(JSON.parse(e));
+        } catch {
+          setStatuses({ "iam-001": "completed" });
+          setNotes({ "iam-001": "Completed — SSO live" });
+        }
+        setLoading(false);
+      }, []);
+
+      function save(newStatuses, newNotes) {
+        try {
+          localStorage.setItem("soc2_statuses", JSON.stringify(newStatuses));
+          localStorage.setItem("soc2_notes", JSON.stringify(newNotes));
+          setSaved(true);
+          setTimeout(() => setSaved(false), 1800);
+        } catch (e) {}
+      }
+
+      function setStatus(id, status) {
+        const next = { ...statuses, [id]: status };
+        setStatuses(next);
+        save(next, notes);
+      }
+
+      function saveNote(id) {
+        const next = { ...notes, [id]: noteInput };
+        setNotes(next);
+        setEditingNote(null);
+        save(statuses, next);
+      }
+
+      function toggleCat(cat) {
+        const next = { ...expandedCats, [cat]: !expandedCats[cat] };
+        setExpandedCats(next);
+        try { localStorage.setItem("soc2_expanded", JSON.stringify(next)); } catch {}
+      }
+
+      const allItems = CHECKLIST_DATA.flatMap(c => c.items);
+      const total = allItems.length;
+      const completed = allItems.filter(i => statuses[i.id] === "completed").length;
+      const inProgress = allItems.filter(i => statuses[i.id] === "in_progress").length;
+      const blocked = allItems.filter(i => statuses[i.id] === "blocked").length;
+      const notStarted = total - completed - inProgress - blocked;
+      const pct = Math.round((completed / total) * 100);
+      const hipaaPct = Math.round(
+        (allItems.filter(i => i.hipaa && statuses[i.id] === "completed").length /
+          allItems.filter(i => i.hipaa).length) * 100
+      );
+
+      const filteredData = CHECKLIST_DATA.map(cat => ({
+        ...cat,
+        items: cat.items.filter(item => {
+          if (hipaaOnly && !item.hipaa) return false;
+          if (ownerFilter !== "all" && item.owner !== ownerFilter) return false;
+          const st = statuses[item.id] || "not_started";
+          if (filter === "all") return true;
+          return st === filter;
+        }),
+      })).filter(cat => cat.items.length > 0);
+
+      if (loading) return (
+        <div style={{ background: "#0f172a", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontFamily: "Inter, system-ui, sans-serif" }}>
+          Loading checklist…
+        </div>
+      );
+
+      return (
+        <div style={{ background: "#0f172a", minHeight: "100vh", fontFamily: "Inter, system-ui, sans-serif", color: "#e2e8f0" }}>
+          {/* Header */}
+          <div style={{ background: "#0f172a", borderBottom: "1px solid #1e293b", padding: "20px 28px 0" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", boxShadow: "0 0 8px #22c55e" }} />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#22c55e", letterSpacing: "0.1em", textTransform: "uppercase" }}>elev8 · Active</span>
+                </div>
+                <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#f1f5f9" }}>SOC 2 Compliance Tracker</h1>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748b" }}>Type I → Type II · Security · Confidentiality · Processing Integrity · Privacy</p>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                {saved && <span style={{ fontSize: 12, color: "#22c55e" }}>✓ Saved</span>}
+                <div style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, padding: "8px 16px", textAlign: "center" }}>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: pct === 100 ? "#22c55e" : "#f1f5f9" }}>{pct}%</div>
+                  <div style={{ fontSize: 10, color: "#64748b", letterSpacing: "0.08em", textTransform: "uppercase" }}>Complete</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div style={{ display: "flex", gap: 0, marginTop: 16 }}>
+              {["checklist", "overview"].map(t => (
+                <button key={t} onClick={() => setActiveTab(t)} style={{
+                  padding: "8px 18px", border: "none", background: "transparent", cursor: "pointer",
+                  fontSize: 13, fontWeight: 600, color: activeTab === t ? "#f1f5f9" : "#64748b",
+                  borderBottom: activeTab === t ? "2px solid #3b82f6" : "2px solid transparent",
+                  textTransform: "capitalize", letterSpacing: "0.02em",
+                }}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ padding: "24px 28px", maxWidth: 1100 }}>
+
+            {activeTab === "overview" && (
+              <div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 24 }}>
+                  {[
+                    { label: "Total Controls", val: total, color: "#94a3b8" },
+                    { label: "Completed", val: completed, color: "#22c55e" },
+                    { label: "In Progress", val: inProgress, color: "#f59e0b" },
+                    { label: "Blocked", val: blocked, color: "#ef4444" },
+                    { label: "Not Started", val: notStarted, color: "#475569" },
+                  ].map(s => (
+                    <div key={s.label} style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, padding: "14px 16px" }}>
+                      <div style={{ fontSize: 26, fontWeight: 800, color: s.color }}>{s.val}</div>
+                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 2, textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 10, padding: 20, marginBottom: 16 }}>
+                  <h3 style={{ margin: "0 0 16px", fontSize: 13, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em" }}>Progress by Category</h3>
+                  {CHECKLIST_DATA.map(cat => {
+                    const done = cat.items.filter(i => statuses[i.id] === "completed").length;
+                    const p = Math.round((done / cat.items.length) * 100);
+                    return (
+                      <div key={cat.category} style={{ marginBottom: 14 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, color: "#cbd5e1" }}>{cat.category}</span>
+                          <span style={{ fontSize: 11, color: "#64748b" }}>{done}/{cat.items.length}</span>
+                        </div>
+                        <ProgressBar pct={p} />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 10, padding: 20 }}>
+                  <h3 style={{ margin: "0 0 12px", fontSize: 13, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em" }}>HIPAA Dual-Compliance</h3>
+                  <ProgressBar pct={hipaaPct} />
+                  <p style={{ margin: "8px 0 0", fontSize: 12, color: "#64748b" }}>
+                    {allItems.filter(i => i.hipaa && statuses[i.id] === "completed").length} of {allItems.filter(i => i.hipaa).length} HIPAA-tagged controls completed
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "checklist" && (
+              <>
+                {/* Filters */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20, alignItems: "center" }}>
+                  <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>Filter:</span>
+                  {[["all", "All"], ["not_started", "Not Started"], ["in_progress", "In Progress"], ["completed", "Completed"], ["blocked", "Blocked"]].map(([val, lbl]) => (
+                    <button key={val} onClick={() => setFilter(val)} style={{
+                      padding: "4px 12px", borderRadius: 5, border: "1px solid",
+                      borderColor: filter === val ? "#3b82f6" : "#334155",
+                      background: filter === val ? "#1d3a6e" : "#1e293b",
+                      color: filter === val ? "#93c5fd" : "#94a3b8",
+                      fontSize: 12, cursor: "pointer", fontWeight: 500,
+                    }}>
+                      {lbl}
+                    </button>
+                  ))}
+                  <span style={{ width: 1, height: 18, background: "#334155", margin: "0 4px" }} />
+                  <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>Owner:</span>
+                  {["all", ...OWNERS].map(o => (
+                    <button key={o} onClick={() => setOwnerFilter(o)} style={{
+                      padding: "4px 12px", borderRadius: 5, border: "1px solid",
+                      borderColor: ownerFilter === o ? "#8b5cf6" : "#334155",
+                      background: ownerFilter === o ? "#2e1b69" : "#1e293b",
+                      color: ownerFilter === o ? "#c4b5fd" : "#94a3b8",
+                      fontSize: 12, cursor: "pointer", fontWeight: 500,
+                    }}>
+                      {o === "all" ? "All" : o}
+                    </button>
+                  ))}
+                  <span style={{ width: 1, height: 18, background: "#334155", margin: "0 4px" }} />
+                  <button onClick={() => setHipaaOnly(!hipaaOnly)} style={{
+                    padding: "4px 12px", borderRadius: 5, border: "1px solid",
+                    borderColor: hipaaOnly ? "#ec4899" : "#334155",
+                    background: hipaaOnly ? "#3d0520" : "#1e293b",
+                    color: hipaaOnly ? "#f9a8d4" : "#94a3b8",
+                    fontSize: 12, cursor: "pointer", fontWeight: 500,
+                  }}>
+                    HIPAA Only
+                  </button>
+                </div>
+
+                {/* Checklist */}
+                {filteredData.map(cat => {
+                  const catDone = cat.items.filter(i => statuses[i.id] === "completed").length;
+                  const isExpanded = expandedCats[cat.category] !== false;
+                  return (
+                    <div key={cat.category} style={{ marginBottom: 12, background: "#131f31", border: "1px solid #1e293b", borderRadius: 10, overflow: "hidden" }}>
+                      <button onClick={() => toggleCat(cat.category)} style={{
+                        width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "12px 16px", background: "transparent", border: "none", cursor: "pointer",
+                        color: "#e2e8f0", textAlign: "left",
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{ fontSize: 9, color: "#94a3b8" }}>{isExpanded ? "▼" : "▶"}</span>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: "#f1f5f9" }}>{cat.category}</span>
+                          <span style={{ fontSize: 10, color: "#475569", background: "#1e293b", padding: "1px 6px", borderRadius: 3, letterSpacing: "0.06em" }}>{cat.tsc}</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <span style={{ fontSize: 12, color: "#64748b" }}>{catDone}/{cat.items.length}</span>
+                          <div style={{ width: 80 }}><ProgressBar pct={Math.round((catDone / cat.items.length) * 100)} /></div>
+                        </div>
+                      </button>
+
+                      {isExpanded && (
+                        <div style={{ borderTop: "1px solid #1e293b" }}>
+                          <div style={{
+                            display: "grid", gridTemplateColumns: "1fr 90px 90px 120px 36px",
+                            padding: "6px 16px", background: "#0f172a",
+                            borderBottom: "1px solid #1e293b",
+                            fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.08em", gap: 8,
+                          }}>
+                            <span>Control</span>
+                            <span>Owner</span>
+                            <span>HIPAA</span>
+                            <span>Status</span>
+                            <span></span>
+                          </div>
+                          {cat.items.map((item, idx) => {
+                            const st = statuses[item.id] || "not_started";
+                            const note = notes[item.id] || item.notes || "";
+                            return (
+                              <div key={item.id}>
+                                <div style={{
+                                  display: "grid", gridTemplateColumns: "1fr 90px 90px 120px 36px",
+                                  padding: "10px 16px", gap: 8, alignItems: "center",
+                                  borderBottom: idx < cat.items.length - 1 ? "1px solid #0f1a2a" : "none",
+                                  background: st === "completed" ? "#0a1f14" : "transparent",
+                                  transition: "background 0.2s",
+                                }}>
+                                  <div>
+                                    <div style={{ fontSize: 13, color: st === "completed" ? "#86efac" : "#cbd5e1", textDecoration: st === "completed" ? "line-through" : "none", opacity: st === "completed" ? 0.75 : 1 }}>
+                                      {item.task}
+                                    </div>
+                                    {note && (
+                                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 2, fontStyle: "italic" }}>
+                                        {note}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <span style={{ fontSize: 12, color: "#64748b" }}>{item.owner}</span>
+                                  <span>
+                                    {item.hipaa && (
+                                      <span style={{ fontSize: 10, color: "#ec4899", background: "#3d0520", border: "1px solid #ec489922", padding: "1px 6px", borderRadius: 3, letterSpacing: "0.04em" }}>HIPAA</span>
+                                    )}
+                                  </span>
+                                  <select
+                                    value={st}
+                                    onChange={e => setStatus(item.id, e.target.value)}
+                                    style={{
+                                      background: STATUS_CONFIG[st].bg, color: STATUS_CONFIG[st].color,
+                                      border: `1px solid ${STATUS_CONFIG[st].color}44`,
+                                      borderRadius: 5, padding: "3px 6px", fontSize: 11, fontWeight: 600,
+                                      cursor: "pointer", width: "100%",
+                                    }}
+                                  >
+                                    {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+                                      <option key={k} value={k} style={{ background: "#1e293b", color: v.color }}>{v.label}</option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    onClick={() => { setEditingNote(item.id); setNoteInput(note); }}
+                                    title="Add/edit note"
+                                    style={{
+                                      background: note ? "#1e3a5f" : "#1e293b", border: "1px solid #334155",
+                                      borderRadius: 5, padding: "3px 8px", cursor: "pointer",
+                                      color: note ? "#93c5fd" : "#475569", fontSize: 13,
+                                    }}>
+                                    ✎
+                                  </button>
+                                </div>
+                                {editingNote === item.id && (
+                                  <div style={{ padding: "8px 16px 12px", background: "#0a1525", borderBottom: "1px solid #1e293b" }}>
+                                    <input
+                                      autoFocus
+                                      value={noteInput}
+                                      onChange={e => setNoteInput(e.target.value)}
+                                      onKeyDown={e => { if (e.key === "Enter") saveNote(item.id); if (e.key === "Escape") setEditingNote(null); }}
+                                      placeholder="Add a note or evidence reference… (Enter to save)"
+                                      style={{
+                                        width: "100%", background: "#1e293b", border: "1px solid #3b82f6",
+                                        borderRadius: 5, color: "#e2e8f0", padding: "7px 10px",
+                                        fontSize: 12, outline: "none", boxSizing: "border-box",
+                                      }}
+                                    />
+                                    <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                                      <button onClick={() => saveNote(item.id)} style={{ background: "#1d4ed8", color: "#fff", border: "none", borderRadius: 4, padding: "4px 12px", fontSize: 11, cursor: "pointer" }}>Save</button>
+                                      <button onClick={() => setEditingNote(null)} style={{ background: "#1e293b", color: "#94a3b8", border: "1px solid #334155", borderRadius: 4, padding: "4px 12px", fontSize: 11, cursor: "pointer" }}>Cancel</button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<SOC2Tracker />);
+  </script>
+</body>
+</html>
